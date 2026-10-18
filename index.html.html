@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crypto Hourly Pattern Analyzer</title>
+<style>
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#e8edf5;background:#0b1220}
+*{box-sizing:border-box}body{margin:0;padding:24px;background:linear-gradient(140deg,#0b1220,#111b2e);min-height:100vh}
+main{max-width:1100px;margin:auto}.hero{margin-bottom:20px}.eyebrow{color:#8ba4c8;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+h1{margin:8px 0;font-size:clamp(25px,4vw,36px)}p{color:#aebbd0;line-height:1.55}
+.panel{background:#121d30;border:1px solid #283852;border-radius:16px;padding:18px;margin:16px 0;box-shadow:0 12px 35px #0002}
+.controls{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end}
+label{display:block;font-size:13px;color:#aebbd0;margin-bottom:7px}
+input,select,button{width:100%;border-radius:10px;padding:12px;border:1px solid #354967;background:#0c1627;color:#f3f6fb;font-size:15px}
+button{background:#3578f6;border:0;font-weight:700;cursor:pointer}button:disabled{opacity:.55;cursor:wait}
+.hint{font-size:12px;color:#91a2bb;margin-top:9px}.status{margin-top:12px;font-size:14px;color:#c3d1e5}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat{background:#0d1728;border:1px solid #293a54;border-radius:12px;padding:14px}.stat small{display:block;color:#91a2bb;margin-bottom:8px}.stat strong{font-size:22px}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;padding:10px 9px;border-bottom:1px solid #283852;white-space:nowrap}th{color:#9fb2cd;font-weight:600;background:#101a2b;position:sticky;top:0}th:first-child,td:first-child{text-align:left}
+.table-wrap{overflow:auto;max-height:650px;border:1px solid #283852;border-radius:12px}
+.green{color:#43d69b;font-weight:700}.red{color:#ff737d;font-weight:700}.neutral{color:#aebbd0}
+.bar{height:7px;background:#26364f;border-radius:99px;overflow:hidden;min-width:80px}.bar span{display:block;height:100%;background:#43d69b}.bar .r{background:#ff737d}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.actions button{width:auto;background:#253854}.footer{font-size:12px;color:#8294ad;margin-top:18px}
+@media(max-width:750px){body{padding:14px}.controls{grid-template-columns:1fr 1fr}.controls .coin{grid-column:1/-1}.controls button{grid-column:1/-1}.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <div class="eyebrow">Personal tool · Binance USDⓈ-M Futures</div>
+    <h1>Crypto Hourly Pattern Analyzer</h1>
+    <p>Enter a coin symbol to calculate, by Indian Standard Time (IST), the percentage of green/red hourly candles and the average hourly return.</p>
+  </div>
+  <section class="panel">
+    <div class="controls">
+      <div class="coin"><label for="symbol">Coin / symbol</label><input id="symbol" value="ZEREBRO" placeholder="e.g. ZEREBRO or ZEREBROUSDT"></div>
+      <div><label for="days">Lookback</label><select id="days"><option value="7">Last 7 days</option><option value="14">Last 14 days</option><option value="30" selected>Last 30 days</option><option value="60">Last 60 days</option><option value="90">Last 90 days</option></select></div>
+      <div><label for="threshold">Red/green rule</label><select id="threshold"><option value="close">Close vs open</option></select></div>
+      <button id="run">Analyze coin</button>
+    </div>
+    <div class="hint">Assumes a USDT-margined perpetual symbol on Binance Futures. Public candle data only; no API key or trading permission required.</div>
+    <div id="status" class="status">Ready. Enter a symbol and select Analyze coin.</div>
+  </section>
+  <section class="panel">
+    <div class="stats">
+      <div class="stat"><small>Hourly candles</small><strong id="n">—</strong></div>
+      <div class="stat"><small>Overall green candles</small><strong id="g">—</strong></div>
+      <div class="stat"><small>Overall red candles</small><strong id="r">—</strong></div>
+      <div class="stat"><small>Overall average return</small><strong id="avg">—</strong></div>
+    </div>
+  </section>
+  <section class="panel">
+    <h2 style="margin:0 0 6px;font-size:20px">Hourly pattern by IST</h2>
+    <p style="margin:0 0 14px">Hours refer to the candle start time. Green/red percentages are calculated from candle close versus open. Average return is (close − open) ÷ open, averaged for that hour.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Time (IST)</th><th>Samples</th><th>🟢 Green candles</th><th>🔴 Red candles</th><th>Avg. return</th><th>Bias by avg.</th><th>Green share</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="neutral" style="text-align:center;padding:24px">Run an analysis to see results.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="actions"><button id="csv" disabled>Download CSV</button><button id="copy" disabled>Copy table</button></div>
+    <div class="footer">Data source: Binance Futures public Kline endpoint. Results are historical statistics, not predictions or trade signals. Exchanges may have different candles and liquidity.</div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let resultRows = [];
+function pct(v){return (v*100).toFixed(2)+'%'}
+function hourLabel(h){const suffix=h<12?'AM':'PM';const hh=h%12||12;return `${hh}:00 ${suffix}`}
+function setStatus(s){$('status').textContent=s}
+function normalizeSymbol(s){s=s.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(!s)throw new Error('Enter a coin symbol.');if(!s.endsWith('USDT'))s+='USDT';return s}
+async function analyze(){
+  const btn=$('run');btn.disabled=true;$('csv').disabled=true;$('copy').disabled=true;
+  $('rows').innerHTML='<tr><td colspan="7" class="neutral" style="text-align:center;padding:24px">Loading candles…</td></tr>';
+  try{
+    const symbol=normalizeSymbol($('symbol').value);
+    const days=Number($('days').value);
+    const end=Date.now();const start=end-days*24*60*60*1000;
+    setStatus(`Fetching ${symbol} hourly candles from Binance Futures…`);
+    const url=`https://fapi.binance.com/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&startTime=${start}&endTime=${end}&limit=1500`;
+    const response=await fetch(url);
+    const data=await response.json();
+    if(!response.ok || !Array.isArray(data))throw new Error(data.msg||data.message||'Could not retrieve candles. Confirm the symbol is listed on Binance USDⓈ-M Futures.');
+    if(!data.length)throw new Error('No candles returned for this symbol and date range.');
+    const candles=data.map(k=>{const t=Number(k[0]);const open=Number(k[1]),close=Number(k[4]);const istDate=new Date(t+330*60000);return {t,open,close,ret:(close-open)/open,h:istDate.getUTCHours(),green:close>open,red:close<open,flat:close===open,volume:Number(k[5])}});
+    const stats=Array.from({length:24},(_,h)=>({h,n:0,g:0,r:0,flat:0,sumRet:0,volume:0})); 
+    for(const c of candles){const s=stats[c.h];s.n++;if(c.green)s.g++;else if(c.red)s.r++;else s.flat++;s.sumRet+=c.ret;s.volume+=c.volume;}
+    resultRows=stats.map(s=>({...s,greenPct:s.n?s.g/s.n*100:0,redPct:s.n?s.r/s.n*100:0,avg:s.n?s.sumRet/s.n:0,volumeAvg:s.n?s.volume/s.n:0})).filter(s=>s.n>0);
+    const greens=candles.filter(c=>c.green).length,reds=candles.filter(c=>c.red).length,flats=candles.filter(c=>c.flat).length;
+    $('n').textContent=candles.length.toLocaleString();
+    $('g').textContent=pct(greens/candles.length);
+    $('r').textContent=pct(reds/candles.length);
+    $('avg').textContent=pct(candles.reduce((a,c)=>a+c.ret,0)/candles.length);
+    $('rows').innerHTML=resultRows.map(s=>{
+      const bias=s.avg>0.0000001?'<span class="green">🟢 Positive</span>':s.avg< -0.0000001?'<span class="red">🔴 Negative</span>':'<span class="neutral">Neutral</span>';
+      const avgClass=s.avg>0?'green':s.avg<0?'red':'neutral';
+      return `<tr><td>${hourLabel(s.h)}</td><td>${s.n}</td><td class="green">${s.greenPct.toFixed(1)}% (${s.g})</td><td class="red">${s.redPct.toFixed(1)}% (${s.r})</td><td class="${avgClass}">${s.avg>0?'+':''}${pct(s.avg)}</td><td>${bias}</td><td><div class="bar"><span style="width:${s.greenPct}%"></span></div></td></tr>`;
+    }).join('');
+    $('csv').disabled=false;$('copy').disabled=false;
+    setStatus(`Loaded ${candles.length} candles for ${symbol}. Range: ${new Date(candles[0].t).toLocaleString()} to ${new Date(candles[candles.length-1].t).toLocaleString()} (browser time). ${flats} flat candles excluded from green/red percentages.`);
+  }catch(e){
+    $('rows').innerHTML=`<tr><td colspan="7" class="red" style="text-align:center;padding:24px">${e.message}</td></tr>`;
+    setStatus('Analysis could not be completed. Check your internet connection and the exact Binance Futures symbol.');
+    $('n').textContent=$('g').textContent=$('r').textContent=$('avg').textContent='—';
+  }finally{btn.disabled=false}
+}
+function csvEscape(x){return '"'+String(x).replaceAll('"','""')+'"'}
+function makeCsv(){return [['Time IST','Samples','Green candles %','Green count','Red candles %','Red count','Flat count','Average return %','Average volume'],...resultRows.map(s=>[hourLabel(s.h),s.n,s.greenPct.toFixed(2),s.g,s.redPct.toFixed(2),s.r,s.flat,(s.avg*100).toFixed(4),s.volumeAvg])].map(row=>row.map(csvEscape).join(',')).join('\r\n')}
+$('run').addEventListener('click',analyze);
+$('symbol').addEventListener('keydown',e=>{if(e.key==='Enter')analyze()});
+$('csv').addEventListener('click',()=>{const blob=new Blob([makeCsv()],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${normalizeSymbol($('symbol').value)}_hourly_pattern_IST.csv`;a.click();URL.revokeObjectURL(a.href)});
+$('copy').addEventListener('click',async()=>{const text=[['Time IST','Samples','Green %','Red %','Avg return','Bias'],...resultRows.map(s=>[hourLabel(s.h),s.n,s.greenPct.toFixed(1)+'%',s.redPct.toFixed(1)+'%',pct(s.avg),s.avg>0?'Positive':s.avg<0?'Negative':'Neutral'])].map(r=>r.join('\t')).join('\n');try{await navigator.clipboard.writeText(text);setStatus('Table copied to clipboard.')}catch(e){setStatus('Clipboard access blocked by browser. Use Download CSV instead.')}});
+</script>
+</body>
+</html>
