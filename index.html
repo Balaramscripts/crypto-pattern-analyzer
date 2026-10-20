@@ -12,6 +12,8 @@ h1{margin:8px 0;font-size:clamp(25px,4vw,36px)}h2{margin:0 0 8px}p{color:#aebbd0
 .nav{position:sticky;top:0;z-index:10;background:#0b1220ed;backdrop-filter:blur(12px);border-bottom:1px solid #283852;padding:10px 16px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
 .nav a{color:#c8d6ea;text-decoration:none;padding:10px 14px;border:1px solid transparent;border-radius:10px;font-weight:700;font-size:14px}
 .nav a:hover,.nav a.active{background:#172740;border-color:#354967;color:#fff}
+.market-mood{display:flex;align-items:center;gap:9px;margin-left:12px;padding:7px 10px;border:1px solid #354967;border-radius:10px;background:#101a2b;font-size:12px;white-space:nowrap}.mood-dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:#91a2bb}.mood-label{font-weight:800}.mood-meta{color:#91a2bb}.market-mood button{width:auto;padding:6px 9px;font-size:12px;border-radius:7px;background:#253854}
+.market-mood.bullish{border-color:#236b52}.market-mood.bullish .mood-dot{background:#43d69b}.market-mood.bearish{border-color:#793b45}.market-mood.bearish .mood-dot{background:#ff737d}.market-mood.mixed .mood-dot{background:#e8b85c}
 .panel{background:#121d30;border:1px solid #283852;border-radius:16px;padding:18px;margin:16px 0;box-shadow:0 12px 35px #0002;scroll-margin-top:80px}
 .controls{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end}
 label{display:block;font-size:13px;color:#aebbd0;margin-bottom:7px}
@@ -27,7 +29,8 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;
 .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.section-head button{width:auto}.pill{font-size:12px;color:#aebbd0;border:1px solid #354967;padding:6px 9px;border-radius:999px}
 .signal-note{background:#0d1728;border:1px solid #293a54;border-radius:12px;padding:12px;color:#aebbd0;font-size:13px;line-height:1.5}
 .coin-link{color:#dce8fa;text-decoration:none;font-weight:700}.score{font-weight:800}
-@media(max-width:750px){main{padding:14px}.controls{grid-template-columns:1fr 1fr}.controls .coin{grid-column:1/-1}.controls button{grid-column:1/-1}.stats{grid-template-columns:1fr 1fr}.two{grid-template-columns:1fr}.nav{justify-content:flex-start;overflow:auto;flex-wrap:nowrap}.nav a{white-space:nowrap}}
+.small-action{width:auto;padding:7px 9px;margin:2px;font-size:12px;border-radius:7px;background:#253854;white-space:nowrap}.small-action.track{background:#24543f}.history-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.history-table td{white-space:normal}.pending{color:#e8b85c;font-weight:700}.win{color:#43d69b;font-weight:700}.loss{color:#ff737d;font-weight:700}
+@media(max-width:750px){main{padding:14px}.controls{grid-template-columns:1fr 1fr}.controls .coin{grid-column:1/-1}.controls button{grid-column:1/-1}.stats{grid-template-columns:1fr 1fr}.two{grid-template-columns:1fr}.nav{justify-content:flex-start;overflow:auto;flex-wrap:nowrap}.nav a{white-space:nowrap}.market-mood{flex-shrink:0;margin-left:0}}
 </style>
 </head>
 <body>
@@ -35,7 +38,15 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;
   <a href="#home" class="active">Home</a>
   <a href="#analyzer">Candle Analyzer</a>
   <a href="#filtercoins">Filter Coins</a>
+  <a href="#liveoutlook">Heatmap & Live Outlook</a>
+  <a href="#nexthours">Next Hours Historical Scan</a>
   <a href="#trading">Trading Coins</a>
+  <a href="#signal-lab">Signal History</a>
+  <div id="globalMarketMood" class="market-mood mixed" role="status" aria-live="polite">
+    <span class="mood-dot"></span><span>Market mood:</span><span id="globalMoodLabel" class="mood-label">Loading…</span>
+    <span id="globalMoodMeta" class="mood-meta">checking top 200</span>
+    <button id="refreshGlobalMood" type="button">Refresh</button>
+  </div>
 </nav>
 <main>
   <div class="hero" id="home">
@@ -69,7 +80,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;
     <p id="tableDescription">Intraday time slots use each candle’s start time in IST. Average return is the mean (close − open) ÷ open for each slot.</p>
     <div class="table-wrap"><table><thead><tr><th id="periodHeading">Time (IST)</th><th>Samples</th><th>🟢 Green candles</th><th>🔴 Red candles</th><th>Avg. return</th><th>Bias by avg.</th><th>Green share</th></tr></thead>
     <tbody id="rows"><tr><td colspan="7" class="neutral" style="text-align:center;padding:24px">Run an analysis to see results.</td></tr></tbody></table></div>
-    <div class="actions"><button id="csv" disabled>Download CSV</button><button id="copy" disabled>Copy table</button></div>
+    <div class="actions"><button id="csv" disabled>Download CSV</button><button id="copy" disabled>Copy table</button><button class="small-action track" onclick="trackAnalyzerSignal()">Track current signal</button></div>
   </section>
 
   <section class="panel" id="filtercoins">
@@ -86,8 +97,42 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;
     <div class="signal-note"><strong>Automatic ranking:</strong> the scanner checks all possible consecutive windows across the whole day, including windows that cross midnight (for example, 22:00–02:00 IST). Negative results rank by the most negative average return; positive results rank by the most positive average return. Historical patterns are not guarantees of future movement.</div>
     <div id="filterStatus" class="status">Ready. Press “Auto scan 24 hours” to scan all hourly windows.</div>
     <div class="stats" style="margin:12px 0"><div class="stat"><small>Markets scanned</small><strong id="filterScanned">—</strong></div><div class="stat"><small>Matching windows</small><strong id="filterMatches">—</strong></div><div class="stat"><small>Best negative window</small><strong id="filterBestNeg">—</strong></div><div class="stat"><small>Best positive window</small><strong id="filterBestPos">—</strong></div></div>
-    <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Coin</th><th>Bias</th><th>Best window (IST)</th><th>Window avg. return</th><th>Weakest/strongest hour</th><th>24h volume</th><th>Hourly details</th></tr></thead><tbody id="filterRows"><tr><td colspan="8" class="neutral" style="text-align:center;padding:24px">No scan run yet.</td></tr></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Coin</th><th>Bias</th><th>Best window (IST)</th><th>Window avg. return</th><th>Weakest/strongest hour</th><th>24h volume</th><th>Hourly details</th><th>Action</th></tr></thead><tbody id="filterRows"><tr><td colspan="9" class="neutral" style="text-align:center;padding:24px">No scan run yet.</td></tr></tbody></table></div>
     <div class="actions"><button id="filterCsv" disabled>Download all results CSV</button></div>
+  </section>
+
+  <section class="panel" id="liveoutlook">
+    <div class="section-head"><div><div class="eyebrow">Live market snapshot · Binance USDⓈ-M Futures</div><h2>Heatmap & Next 4–5 Hour Outlook</h2></div><button id="runOutlook">Scan live market</button></div>
+    <p>Ranks liquid USDT perpetuals using recent completed 15m, 1h and 4h price movement plus the 24h change. The outlook is a momentum-based scenario for the next 4–5 hours—not a guaranteed prediction. Confirm the chart and use a stop-loss before trading.</p>
+    <div class="controls" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px">
+      <div><label for="outlookUniverse">Markets to scan</label><select id="outlookUniverse"><option value="25">Top 25 by volume</option><option value="50">Top 50 by volume</option><option value="100">Top 100 by volume</option><option value="200" selected>Top 200 by volume</option></select></div>
+      <div><label for="outlookVolume">Minimum 24h volume</label><select id="outlookVolume"><option value="1000000">$1 million</option><option value="5000000" selected>$5 million</option><option value="10000000">$10 million</option><option value="25000000">$25 million</option></select></div>
+      <div><label for="outlookHours">Outlook horizon</label><select id="outlookHours"><option value="4">Next 4 hours</option><option value="5" selected>Next 5 hours</option></select></div>
+    </div>
+    <div class="signal-note"><strong>Decision rule:</strong> a directional suggestion appears only when multiple timeframes agree. “Short candidate” means bearish momentum is aligned; “Buy/long candidate” means bullish momentum is aligned. Mixed readings become “Wait / no clear edge.” This tool does not execute trades and cannot know future candles.</div>
+    <div id="outlookStatus" class="status">Ready. Press “Scan live market” to build the heatmap and current outlook.</div>
+    <div class="stats" style="margin:12px 0"><div class="stat"><small>Markets evaluated</small><strong id="outlookScanned">—</strong></div><div class="stat"><small>Long candidates</small><strong id="outlookLong">—</strong></div><div class="stat"><small>Short candidates</small><strong id="outlookShort">—</strong></div><div class="stat"><small>Market mood</small><strong id="outlookMood">—</strong></div></div>
+    <h3 style="margin:20px 0 10px">Live momentum heatmap</h3>
+    <div class="table-wrap"><table><thead><tr><th># / Coin</th><th>24h</th><th>4h</th><th>1h</th><th>15m</th><th>Momentum score</th><th>Heat</th><th>Suggestion</th><th>Action</th></tr></thead><tbody id="outlookRows"><tr><td colspan="9" class="neutral" style="text-align:center;padding:24px">No scan run yet.</td></tr></tbody></table></div>
+    <div class="actions"><button id="outlookCsv" disabled>Download heatmap CSV</button></div>
+    <p class="hint">Uses completed candles where possible. Scores combine recent price returns; fees, funding, slippage, liquidation risk, support/resistance and broader market shocks are not fully modeled.</p>
+  </section>
+
+
+  <section class="panel" id="nexthours">
+    <div class="section-head"><div><div class="eyebrow">30-day historical hour-slot analysis · IST</div><h2>Next 2 / 3 / 4 Hours — Positive & Negative Coins</h2></div><button id="runNextHours">Scan all 200 coins</button></div>
+    <p>Scans the top 200 eligible Binance USDT perpetual markets by 24-hour quote volume, then compares the upcoming IST hour slots with the same hour slots over the last 30 days. It lists coins whose average return is consistently positive or consistently negative across your selected 2, 3, or 4-hour window.</p>
+    <div class="controls" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:14px">
+      <div><label for="nextHoursCount">Upcoming window</label><select id="nextHoursCount"><option value="2">Next 2 hours</option><option value="3" selected>Next 3 hours</option><option value="4">Next 4 hours</option></select></div>
+      <div><label for="nextHoursUniverse">Markets to scan</label><select id="nextHoursUniverse"><option value="200" selected>Top 200 by volume</option><option value="100">Top 100 by volume</option><option value="50">Top 50 by volume</option></select></div>
+      <div><label for="nextHoursVolume">Minimum 24h quote volume</label><select id="nextHoursVolume"><option value="1000000">$1 million</option><option value="5000000" selected>$5 million</option><option value="10000000">$10 million</option></select></div>
+    </div>
+    <div class="signal-note"><strong>How this works:</strong> each selected upcoming hour is compared with that same IST hour's average hourly candle return over the last 30 days. A coin is labelled consistently positive only if every selected hour's historical average is above zero; consistently negative only if every selected hour's average is below zero. These are historical tendencies, not predictions or guaranteed trade signals. The scan uses the current IST hour slot as the starting slot.</div>
+    <div id="nextHoursStatus" class="status">Ready. Press “Scan all 200 coins”. This scan may take a few minutes because it loads 30 days of hourly data for each market.</div>
+    <div class="stats" style="margin:12px 0"><div class="stat"><small>Markets scanned</small><strong id="nextHoursScanned">—</strong></div><div class="stat"><small>Positive candidates</small><strong id="nextHoursPositive">—</strong></div><div class="stat"><small>Negative candidates</small><strong id="nextHoursNegative">—</strong></div><div class="stat"><small>Starting IST hour</small><strong id="nextHoursStart">—</strong></div></div>
+    <h3 style="margin:20px 0 10px">Consistent positive / negative candidates</h3>
+    <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Coin</th><th>Historical bias</th><th>Next window (IST hour slots)</th><th>Window avg. return</th><th>Hourly historical averages</th><th>24h volume</th><th>Action</th></tr></thead><tbody id="nextHoursRows"><tr><td colspan="7" class="neutral" style="text-align:center;padding:24px">No scan run yet.</td></tr></tbody></table></div>
+    <div class="actions"><button id="nextHoursCsv" disabled>Download candidates CSV</button></div>
   </section>
 
   <section class="panel" id="trading">
@@ -103,14 +148,28 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;
     <div class="two">
       <div>
         <div class="section-head"><h2 style="font-size:19px">🟢 Top 10 Long</h2><span class="pill">Strongest positive momentum</span></div>
-        <div class="table-wrap"><table><thead><tr><th># / Coin</th><th>24h change</th><th>1h</th><th>15m</th><th>Score</th><th>24h volume</th></tr></thead><tbody id="longRows"><tr><td colspan="6" class="neutral" style="text-align:center;padding:20px">Run a market scan.</td></tr></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th># / Coin</th><th>24h change</th><th>1h</th><th>15m</th><th>Score</th><th>24h volume</th><th>Action</th></tr></thead><tbody id="longRows"><tr><td colspan="7" class="neutral" style="text-align:center;padding:20px">Run a market scan.</td></tr></tbody></table></div>
       </div>
       <div>
         <div class="section-head"><h2 style="font-size:19px">🔴 Top 10 Short</h2><span class="pill">Strongest negative momentum</span></div>
-        <div class="table-wrap"><table><thead><tr><th># / Coin</th><th>24h change</th><th>1h</th><th>15m</th><th>Score</th><th>24h volume</th></tr></thead><tbody id="shortRows"><tr><td colspan="6" class="neutral" style="text-align:center;padding:20px">Run a market scan.</td></tr></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th># / Coin</th><th>24h change</th><th>1h</th><th>15m</th><th>Score</th><th>24h volume</th><th>Action</th></tr></thead><tbody id="shortRows"><tr><td colspan="7" class="neutral" style="text-align:center;padding:20px">Run a market scan.</td></tr></tbody></table></div>
       </div>
     </div>
     <div class="footer">Data source: Binance USDⓈ-M Futures public market data. Market lists and rankings change continuously. Historical performance and momentum are not guarantees of future returns. Use position sizing and stop-loss rules; leveraged futures can lose money rapidly.</div>
+  </section>
+  <section class="panel" id="signal-lab">
+    <div class="section-head"><div><div class="eyebrow">V5 · Live forward testing</div><h2>Signal History</h2></div><button id="refreshHistory">Refresh / settle due tests</button></div>
+    <p>Use <strong>Track</strong> beside a coin to snapshot a signal now and compare its entry price with the first available 1-minute candle close at or just after each 2, 3, 4 and 5-hour due time. Duplicate clicks for the same coin/side/source are suppressed for 15 minutes. This does not execute trades.</p>
+    <div class="controls" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px">
+      <div><label for="btFee">Estimated round-trip cost for forward tests</label><select id="btFee"><option value="0">0% (gross)</option><option value="0.001" selected>0.10%</option><option value="0.002">0.20%</option><option value="0.004">0.40%</option></select></div>
+      <div><label for="btDirection">Analyzer tracking direction</label><select id="btDirection"><option value="long">Long / positive</option><option value="short">Short / negative</option></select></div>
+    </div>
+    <div id="btStatus" class="status">Ready. Choose Track beside a coin to record a forward signal.</div>
+    <div class="stats" style="margin:12px 0"><div class="stat"><small>Forward signals</small><strong id="historyTotal">0</strong></div><div class="stat"><small>Pending evaluations</small><strong id="historyPending">0</strong></div><div class="stat"><small>Completed outcomes</small><strong id="historyCompleted">0</strong></div><div class="stat"><small>Forward win rate</small><strong id="historyWinRate">—</strong></div></div>
+    <h3 style="margin:18px 0 8px">Forward signal history</h3>
+    <div class="history-actions"><button id="exportHistory">Export history CSV</button><button id="clearHistory" style="background:#7d3540">Clear all history</button><span class="pill">Saved in this browser profile</span></div>
+    <div class="table-wrap"><table class="history-table"><thead><tr><th>Recorded</th><th>Coin</th><th>Side</th><th>Source</th><th>Entry</th><th>Horizon</th><th>Due / evaluated</th><th>Exit</th><th>Net return</th><th>Outcome</th><th>Action</th></tr></thead><tbody id="forwardHistoryRows"><tr><td colspan="11" class="neutral" style="text-align:center;padding:20px">No forward signals tracked yet.</td></tr></tbody></table></div>
+    <p class="hint">Forward tests are evaluated automatically while this page is open and again when you reopen the file or click Refresh. The result uses historical 1-minute candles around the due time (not the current price at reopen). A browser-only HTML file cannot run a background job while Chrome is fully closed; overdue tests are settled when the file is opened again. Keep the same HTML file and browser profile so the saved history remains available.</p>
   </section>
   <div class="footer">Personal analysis tool. Data requests may be blocked by some browsers, networks, or hosting environments. If “Failed to fetch” appears, try Chrome directly or use a local backend/proxy.</div>
 </main>
@@ -179,7 +238,7 @@ function findBestWindow(slots, length, direction, minSamples){
 }
 async function filterCoins(){
  const btn=$('runFilter');btn.disabled=true;filterResults=[];
- $('filterRows').innerHTML='<tr><td colspan="8" class="neutral" style="text-align:center;padding:24px">Scanning the full 24-hour day and ranking continuous windows…</td></tr>';
+ $('filterRows').innerHTML='<tr><td colspan="9" class="neutral" style="text-align:center;padding:24px">Scanning the full 24-hour day and ranking continuous windows…</td></tr>';
  $('filterCsv').disabled=true;
  try{
   const length=Number($('filterWindow').value),days=Number($('filterDays').value),limit=Number($('filterUniverse').value),minVol=Number($('filterMinVolume').value),minSamples=Number($('filterMinSamples').value),resultLimit=Number($('filterResultLimit').value);
@@ -210,21 +269,116 @@ async function filterCoins(){
   $('filterBestPos').textContent=positives.length?`${positives[0].symbol} +${pct(positives[0].mean)}`:'None';
   const mixed=[];for(let i=0;i<Math.max(negatives.length,positives.length);i++){if(negatives[i])mixed.push(negatives[i]);if(positives[i])mixed.push(positives[i]);}
   const shown=resultLimit===500?mixed:mixed.slice(0,resultLimit);
-  if(!shown.length){$('filterRows').innerHTML='<tr><td colspan="8" class="neutral" style="text-align:center;padding:24px">No qualifying continuous windows found. Try a longer lookback, fewer consecutive hours, or a lower sample/volume threshold.</td></tr>';}
-  else $('filterRows').innerHTML=shown.map((x,i)=>{const neg=x.direction==='negative',cls=neg?'red':'green',detail=x.hours.map(h=>`${hourText(h.hour)} ${h.avg>0?'+':''}${pct(h.avg)} (n=${h.n})`).join(' · '),window=`${hourText(x.start)}–${hourText((x.end+1)%24)}${x.end<x.start?' (+midnight)':''}`;return `<tr><td>${i+1}</td><td><a class="coin-link" href="https://www.binance.com/en/futures/${x.symbol}" target="_blank" rel="noopener">${x.symbol}</a></td><td class="${cls}">${neg?'Negative':'Positive'}</td><td>${window}</td><td class="${cls}">${x.mean>0?'+':''}${pct(x.mean)}</td><td class="${cls}">${x.extreme>0?'+':''}${pct(x.extreme)}</td><td>$${(x.volume/1e6).toFixed(1)}M</td><td style="white-space:normal;min-width:320px">${detail}</td></tr>`}).join('');
+  if(!shown.length){$('filterRows').innerHTML='<tr><td colspan="9" class="neutral" style="text-align:center;padding:24px">No qualifying continuous windows found. Try a longer lookback, fewer consecutive hours, or a lower sample/volume threshold.</td></tr>';}
+  else $('filterRows').innerHTML=shown.map((x,i)=>{const neg=x.direction==='negative',cls=neg?'red':'green',detail=x.hours.map(h=>`${hourText(h.hour)} ${h.avg>0?'+':''}${pct(h.avg)} (n=${h.n})`).join(' · '),window=`${hourText(x.start)}–${hourText((x.end+1)%24)}${x.end<x.start?' (+midnight)':''}`;return `<tr><td>${i+1}</td><td><a class="coin-link" href="https://www.binance.com/en/futures/${x.symbol}" target="_blank" rel="noopener">${x.symbol}</a></td><td class="${cls}">${neg?'Negative':'Positive'}</td><td>${window}</td><td class="${cls}">${x.mean>0?'+':''}${pct(x.mean)}</td><td class="${cls}">${x.extreme>0?'+':''}${pct(x.extreme)}</td><td>$${(x.volume/1e6).toFixed(1)}M</td><td style="white-space:normal;min-width:320px">${detail}</td><td><button class="small-action track" onclick="trackSignal('${x.symbol}','${neg?'short':'long'}','Filter Coins','${neg?'negative':'positive'} hourly window avg ${Number(x.mean).toFixed(6)}')">Track</button></td></tr>`}).join('');
   $('filterCsv').disabled=!filterResults.length;
   $('filterStatus').textContent=`Done: scanned ${universe.length} markets and found ${results.length} qualifying best windows (${negatives.length} negative, ${positives.length} positive). Lookback ${days} days; ${length} consecutive hours; updated ${new Date().toLocaleTimeString()}.`;
- }catch(e){$('filterStatus').textContent=`Auto scan failed: ${e.message}`;$('filterRows').innerHTML=`<tr><td colspan="8" class="red" style="text-align:center;padding:24px">${e.message}</td></tr>`;$('filterCsv').disabled=true;}
+ }catch(e){$('filterStatus').textContent=`Auto scan failed: ${e.message}`;$('filterRows').innerHTML=`<tr><td colspan="9" class="red" style="text-align:center;padding:24px">${e.message}</td></tr>`;$('filterCsv').disabled=true;}
  finally{btn.disabled=false;}
 }
 function downloadFilterCsv(){const rows=[['Rank','Coin','Bias','Window start IST','Window end IST','Window average return %','Extreme hourly return %','24h quote volume USD','Hour IST','Average return %','Samples']];for(const x of filterResults)for(const h of x.hours)rows.push([filterResults.indexOf(x)+1,x.symbol,x.direction,hourText(x.start),hourText((x.end+1)%24),(x.mean*100).toFixed(4),(x.extreme*100).toFixed(4),x.volume,hourText(h.hour),(h.avg*100).toFixed(4),h.n]);const csv=rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='auto_24h_continuous_hour_bias_IST.csv';a.click();URL.revokeObjectURL(a.href);}
 $('runFilter').addEventListener('click',filterCoins);$('filterCsv').addEventListener('click',downloadFilterCsv);
 
+
+let outlookResults=[];
+const signedPct=v=>(v>0?'+':'')+pct(v);
+function returnAcross(candles,count){
+ if(!Array.isArray(candles)||candles.length<count+1)return 0;
+ const now=Date.now();let closed=candles.filter(c=>Number(c[6])<now);
+ if(closed.length<count+1)closed=candles;
+ const a=closed[closed.length-1-count],b=closed[closed.length-1];
+ const base=Number(a[4]),last=Number(b[4]);return base>0?(last-base)/base:0;
+}
+async function scanOutlook(){
+ const btn=$('runOutlook');btn.disabled=true;$('outlookCsv').disabled=true;
+ $('outlookRows').innerHTML='<tr><td colspan="9" class="neutral" style="text-align:center;padding:24px">Fetching live futures data…</td></tr>';
+ try{
+  const [info,tickers]=await Promise.all([getJson('https://fapi.binance.com/fapi/v1/exchangeInfo'),getJson('https://fapi.binance.com/fapi/v1/ticker/24hr')]);
+  const allowed=new Set(info.symbols.filter(s=>s.status==='TRADING'&&s.contractType==='PERPETUAL'&&s.quoteAsset==='USDT').map(s=>s.symbol));
+  const minVol=Number($('outlookVolume').value),limit=Number($('outlookUniverse').value),horizon=Number($('outlookHours').value);
+  const universe=tickers.filter(t=>allowed.has(t.symbol)&&Number(t.quoteVolume)>=minVol).sort((a,b)=>Number(b.quoteVolume)-Number(a.quoteVolume)).slice(0,limit);
+  if(!universe.length)throw new Error('No markets passed the volume filter.');
+  let done=0,all=[];const concurrency=6;
+  for(let i=0;i<universe.length;i+=concurrency){
+   const batch=universe.slice(i,i+concurrency);
+   const part=await Promise.all(batch.map(async t=>{try{
+    const [h1,m15]=await Promise.all([
+     getJson(`https://fapi.binance.com/fapi/v1/klines?symbol=${t.symbol}&interval=1h&limit=7`),
+     getJson(`https://fapi.binance.com/fapi/v1/klines?symbol=${t.symbol}&interval=15m&limit=5`)
+    ]);
+    const h4=returnAcross(h1,4),h1r=returnAcross(h1,1),m15r=returnAcross(m15,1),d24=Number(t.priceChangePercent)/100;
+    const score=.25*d24+.35*h4+.25*h1r+.15*m15r;
+    const alignedUp=h4>0&&h1r>0&&m15r>0,alignedDown=h4<0&&h1r<0&&m15r<0;
+    let suggestion='Wait / no clear edge',direction='neutral',confidence='Low';
+    if(alignedUp&&score>0){suggestion=`Buy / long candidate · next ${horizon}h`;direction='positive';confidence=score>.025?'Higher momentum':'Moderate momentum';}
+    else if(alignedDown&&score<0){suggestion=`Short candidate · next ${horizon}h`;direction='negative';confidence=score<-.025?'Higher momentum':'Moderate momentum';}
+    else if(score>.012&&h1r>0&&m15r>0){suggestion='Bullish watchlist · wait for confirmation';direction='positive';confidence='Mixed';}
+    else if(score<-.012&&h1r<0&&m15r<0){suggestion='Bearish watchlist · wait for confirmation';direction='negative';confidence='Mixed';}
+    return {symbol:t.symbol,volume:Number(t.quoteVolume),d24,h4,h1r,m15r,score,direction,suggestion,confidence};
+   }catch(_){return null}}));
+   all=all.concat(part.filter(Boolean));done+=batch.length;$('outlookStatus').textContent=`Fetching live candles: ${Math.min(done,universe.length)} / ${universe.length} markets…`;
+  }
+  if(!all.length)throw new Error('Could not load candle data. Check internet access or retry.');
+  all.sort((a,b)=>b.score-a.score);outlookResults=all;
+  const longs=all.filter(x=>x.direction==='positive'&&x.suggestion.startsWith('Buy')),shorts=all.filter(x=>x.direction==='negative'&&x.suggestion.startsWith('Short'));
+  const upBreadth=all.filter(x=>x.h4>0&&x.h1r>0).length,downBreadth=all.filter(x=>x.h4<0&&x.h1r<0).length;
+  const upShare=upBreadth/all.length,downShare=downBreadth/all.length;
+  const mood=upShare>=.60?'Bullish':downShare>=.60?'Bearish':'Mixed';
+  $('outlookScanned').textContent=all.length;$('outlookLong').textContent=longs.length;$('outlookShort').textContent=shorts.length;
+  $('outlookMood').textContent=`${mood} (${Math.round(Math.max(upShare,downShare)*100)}% aligned)`;$('outlookMood').className=mood==='Bullish'?'green':mood==='Bearish'?'red':'neutral';
+  $('outlookRows').innerHTML=all.map((x,i)=>{const heat=x.score>.02?'Strong bullish':x.score>.005?'Bullish':x.score<-.02?'Strong bearish':x.score<-.005?'Bearish':'Neutral';const color=x.score>.005?'green':x.score<-.005?'red':'neutral';const bg=x.score>.02?'#174b3b':x.score>.005?'#15372f':x.score<-.02?'#582832':x.score<-.005?'#3c202b':'#273449';return `<tr><td><a class="coin-link" href="https://www.binance.com/en/futures/${x.symbol}" target="_blank" rel="noopener">${i+1}. ${x.symbol}</a></td><td class="${x.d24>=0?'green':'red'}">${signedPct(x.d24)}</td><td class="${x.h4>=0?'green':'red'}">${signedPct(x.h4)}</td><td class="${x.h1r>=0?'green':'red'}">${signedPct(x.h1r)}</td><td class="${x.m15r>=0?'green':'red'}">${signedPct(x.m15r)}</td><td class="${color}">${signedPct(x.score)}</td><td><span style="display:inline-block;background:${bg};padding:5px 8px;border-radius:7px">${heat}</span></td><td class="${x.direction==='positive'?'green':x.direction==='negative'?'red':'neutral'}" style="white-space:normal;min-width:230px">${x.suggestion}<br><small class="neutral">${x.confidence}</small></td><td><button class="small-action track" onclick="trackSignal('${x.symbol}','${x.direction==='negative'?'short':'long'}','Heatmap','score ${Number(x.score).toFixed(6)}; ${x.suggestion}')">Track</button></td></tr>`}).join('');
+  $('outlookStatus').textContent=`Completed at ${new Date().toLocaleTimeString()}. Scanned ${all.length} markets. Outlook horizon: next ${horizon} hours. Signals are momentum-based scenarios, not certainty.`;$('outlookCsv').disabled=false;
+ }catch(e){$('outlookStatus').textContent=`Scan failed: ${e.message}`;$('outlookRows').innerHTML=`<tr><td colspan="9" class="red" style="text-align:center;padding:24px">${e.message}</td></tr>`;}
+ finally{btn.disabled=false;}
+}
+function downloadOutlookCsv(){const rows=[['Rank','Coin','24h return %','4h return %','1h return %','15m return %','Momentum score %','Heat','Suggestion','Confidence','24h volume USD'],...outlookResults.map((x,i)=>[i+1,x.symbol,(x.d24*100).toFixed(4),(x.h4*100).toFixed(4),(x.h1r*100).toFixed(4),(x.m15r*100).toFixed(4),(x.score*100).toFixed(4),x.direction,x.suggestion,x.confidence,x.volume])];const csv=rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='live_crypto_heatmap_next_hours.csv';a.click();URL.revokeObjectURL(a.href);}
+$('runOutlook').addEventListener('click',scanOutlook);$('outlookCsv').addEventListener('click',downloadOutlookCsv);
+
+
+let nextHoursResults=[];
+function istHourNow(){return new Date(Date.now()+330*60*1000).getUTCHours();}
+function istClock(h){const hh=h%24;return `${String(hh).padStart(2,'0')}:00 IST`;}
+async function scanNextHours(){
+ const btn=$('runNextHours');btn.disabled=true;$('nextHoursCsv').disabled=true;
+ $('nextHoursRows').innerHTML='<tr><td colspan="8" class="neutral" style="text-align:center;padding:24px">Loading 30 days of hourly candles for markets…</td></tr>';
+ try{
+  const [info,tickers]=await Promise.all([getJson('https://fapi.binance.com/fapi/v1/exchangeInfo'),getJson('https://fapi.binance.com/fapi/v1/ticker/24hr')]);
+  const allowed=new Set(info.symbols.filter(x=>x.status==='TRADING'&&x.contractType==='PERPETUAL'&&x.quoteAsset==='USDT').map(x=>x.symbol));
+  const count=Number($('nextHoursCount').value),limit=Number($('nextHoursUniverse').value),minVol=Number($('nextHoursVolume').value);
+  const universe=tickers.filter(t=>allowed.has(t.symbol)&&Number(t.quoteVolume)>=minVol).sort((a,b)=>Number(b.quoteVolume)-Number(a.quoteVolume)).slice(0,limit);
+  if(!universe.length)throw new Error('No eligible markets passed the volume filter.');
+  const startHour=istHourNow();$('nextHoursStart').textContent=istClock(startHour);
+  const now=Date.now(),start=now-30*24*60*60*1000;let done=0,all=[];const concurrency=4;
+  for(let i=0;i<universe.length;i+=concurrency){
+   const batch=universe.slice(i,i+concurrency);
+   const part=await Promise.all(batch.map(async t=>{try{
+    const candles=await getJson(`https://fapi.binance.com/fapi/v1/klines?symbol=${encodeURIComponent(t.symbol)}&interval=1h&startTime=${start}&endTime=${now}&limit=720`);
+    const slots=Array.from({length:24},()=>[]);
+    for(const c of candles){if(Number(c[6])>=now)continue;const open=Number(c[1]),close=Number(c[4]);if(!(open>0))continue;const istDate=new Date(Number(c[0])+330*60*1000);const hour=istDate.getUTCHours();slots[hour].push((close-open)/open);}
+    const hourly=[];for(let k=0;k<count;k++){const hour=(startHour+k)%24,values=slots[hour];if(!values.length)return null;const avg=values.reduce((a,b)=>a+b,0)/values.length;hourly.push({hour,avg,n:values.length,green:values.filter(v=>v>0).length,red:values.filter(v=>v<0).length});}
+    const positive=hourly.every(x=>x.avg>0),negative=hourly.every(x=>x.avg<0);if(!positive&&!negative)return null;
+    const mean=hourly.reduce((a,x)=>a+x.avg,0)/hourly.length;
+    return {symbol:t.symbol,volume:Number(t.quoteVolume),direction:positive?'positive':'negative',mean,hourly,startHour,count};
+   }catch(_){return null}}));
+   all.push(...part.filter(Boolean));done+=batch.length;$('nextHoursStatus').textContent=`Scanning 30-day hourly history: ${Math.min(done,universe.length)} / ${universe.length} markets processed. Matching coins so far: ${all.length}.`;
+  }
+  all.sort((a,b)=>a.direction===b.direction?(a.direction==='negative'?a.mean-b.mean:b.mean-a.mean):(a.direction==='negative'?-1:1));nextHoursResults=all;
+  const positives=all.filter(x=>x.direction==='positive').sort((a,b)=>b.mean-a.mean),negatives=all.filter(x=>x.direction==='negative').sort((a,b)=>a.mean-b.mean);
+  const combined=[];for(let i=0;i<Math.max(positives.length,negatives.length);i++){if(negatives[i])combined.push(negatives[i]);if(positives[i])combined.push(positives[i]);}
+  $('nextHoursScanned').textContent=universe.length;$('nextHoursPositive').textContent=positives.length;$('nextHoursNegative').textContent=negatives.length;
+  $('nextHoursRows').innerHTML=combined.length?combined.map((x,i)=>{const pos=x.direction==='positive',cls=pos?'green':'red',win=`${istClock(x.startHour)} → ${istClock((x.startHour+x.count)%24)}`;const detail=x.hourly.map(h=>`${istClock(h.hour)}: <span class="${h.avg>0?'green':'red'}">${h.avg>0?'+':''}${pct(h.avg)}</span> (n=${h.n})`).join('<br>');return `<tr><td>${i+1}</td><td><a class="coin-link" href="https://www.binance.com/en/futures/${x.symbol}" target="_blank" rel="noopener">${x.symbol}</a></td><td class="${cls}">${pos?'Consistently positive':'Consistently negative'}</td><td>${win}</td><td class="${cls}">${x.mean>0?'+':''}${pct(x.mean)}</td><td style="white-space:normal;min-width:240px">${detail}</td><td>$${(x.volume/1e6).toFixed(1)}M</td><td><button class="small-action track" onclick="trackSignal('${x.symbol}','${pos?'long':'short'}','Next Hours','historical window avg ${Number(x.mean).toFixed(6)}')">Track</button></td></tr>`}).join(''):'<tr><td colspan="8" class="neutral" style="text-align:center;padding:24px">No coins had consistently positive or negative historical average returns for every selected hour. Try a shorter window or lower volume threshold.</td></tr>';
+  $('nextHoursCsv').disabled=!all.length;$('nextHoursStatus').textContent=`Complete: scanned ${universe.length} markets; ${positives.length} consistently positive and ${negatives.length} consistently negative candidates. Compared matching IST hour slots across the last 30 days. Updated ${new Date().toLocaleTimeString()}.`;
+ }catch(e){$('nextHoursStatus').textContent=`Scan failed: ${e.message}. Check internet access or retry.`;$('nextHoursRows').innerHTML=`<tr><td colspan="8" class="red" style="text-align:center;padding:24px">${e.message}</td></tr>`;}
+ finally{btn.disabled=false;}
+}
+function downloadNextHoursCsv(){const rows=[['Rank','Coin','Historical bias','Window start IST','Hours','Window average return %','24h quote volume USD','Hour IST','Historical avg return %','Samples','Green candle count','Red candle count']];for(let i=0;i<nextHoursResults.length;i++){const x=nextHoursResults[i];for(const h of x.hourly)rows.push([i+1,x.symbol,x.direction,istClock(x.startHour),x.count,(x.mean*100).toFixed(4),x.volume,istClock(h.hour),(h.avg*100).toFixed(4),h.n,h.green,h.red]);}const csv=rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='next_hours_30_day_historical_bias_200_coins.csv';a.click();URL.revokeObjectURL(a.href);}
+$('runNextHours').addEventListener('click',scanNextHours);$('nextHoursCsv').addEventListener('click',downloadNextHoursCsv);
+
 async function scanMarkets(){
  const buttons=[$('scan'),$('scan2')];buttons.forEach(b=>b.disabled=true);
  $('scanStatus').textContent='Fetching USDT perpetual markets and recent candles…';
- $('longRows').innerHTML='<tr><td colspan="6" class="neutral" style="text-align:center;padding:20px">Scanning…</td></tr>';
- $('shortRows').innerHTML='<tr><td colspan="6" class="neutral" style="text-align:center;padding:20px">Scanning…</td></tr>';
+ $('longRows').innerHTML='<tr><td colspan="7" class="neutral" style="text-align:center;padding:20px">Scanning…</td></tr>';
+ $('shortRows').innerHTML='<tr><td colspan="7" class="neutral" style="text-align:center;padding:20px">Scanning…</td></tr>';
  try{
   const [exchangeInfo,tickers]=await Promise.all([
    getJson('https://fapi.binance.com/fapi/v1/exchangeInfo'),
@@ -255,17 +409,101 @@ async function scanMarkets(){
   if(!results.length)throw new Error('No market data could be loaded. Check API access or retry.');
   const longs=[...results].sort((a,b)=>b.score-a.score).slice(0,10);
   const shorts=[...results].sort((a,b)=>a.score-b.score).slice(0,10);
-  const row=(x,i,kind)=>`<tr><td><a class="coin-link" href="https://www.binance.com/en/futures/${x.symbol}" target="_blank" rel="noopener">${i+1}. ${x.symbol}</a></td><td class="${x.dret>=0?'green':'red'}">${pct(x.dret)}</td><td class="${x.hret>=0?'green':'red'}">${pct(x.hret)}</td><td class="${x.mret>=0?'green':'red'}">${pct(x.mret)}</td><td class="score ${x.score>=0?'green':'red'}">${x.score>=0?'+':''}${pct(x.score)}</td><td>$${(x.volume/1e6).toFixed(1)}M</td></tr>`;
+  const row=(x,i,kind)=>`<tr><td><a class="coin-link" href="https://www.binance.com/en/futures/${x.symbol}" target="_blank" rel="noopener">${i+1}. ${x.symbol}</a></td><td class="${x.dret>=0?'green':'red'}">${pct(x.dret)}</td><td class="${x.hret>=0?'green':'red'}">${pct(x.hret)}</td><td class="${x.mret>=0?'green':'red'}">${pct(x.mret)}</td><td class="score ${x.score>=0?'green':'red'}">${x.score>=0?'+':''}${pct(x.score)}</td><td>$${(x.volume/1e6).toFixed(1)}M</td><td><button class="small-action track" onclick="trackSignal('${x.symbol}','${kind}','Trading Coins','score ${Number(x.score).toFixed(6)}')">Track</button></td></tr>`;
   $('longRows').innerHTML=longs.map((x,i)=>row(x,i,'long')).join('');
   $('shortRows').innerHTML=shorts.map((x,i)=>row(x,i,'short')).join('');
   $('scanStatus').textContent=`Scan complete: ranked ${results.length} liquid USDT perpetuals. Updated ${new Date().toLocaleTimeString()}.`;
  }catch(e){
   $('scanStatus').textContent=`Scan failed: ${e.message} If browser access is blocked, a local backend/proxy may be required.`;
-  $('longRows').innerHTML='<tr><td colspan="6" class="red" style="text-align:center;padding:20px">Could not load scanner data.</td></tr>';
-  $('shortRows').innerHTML='<tr><td colspan="6" class="red" style="text-align:center;padding:20px">Could not load scanner data.</td></tr>';
+  $('longRows').innerHTML='<tr><td colspan="7" class="red" style="text-align:center;padding:20px">Could not load scanner data.</td></tr>';
+  $('shortRows').innerHTML='<tr><td colspan="7" class="red" style="text-align:center;padding:20px">Could not load scanner data.</td></tr>';
  }finally{buttons.forEach(b=>b.disabled=false)}
 }
 $('scan').addEventListener('click',scanMarkets);$('scan2').addEventListener('click',scanMarkets);
+// Batch scanner: compare fixed-direction long/short baselines for top liquid USDT perpetuals.
+// V5 Signal Lab: browser-persistent forward tests and historical directional baseline.
+const HISTORY_KEY='cryptoPatternAnalyzerV5History';
+let forwardHistory=[];
+function loadSignalHistory(){
+ try{
+  const d=JSON.parse(localStorage.getItem(HISTORY_KEY)||'{}');forwardHistory=Array.isArray(d.forward)?d.forward:[];
+  // Migrate older V5 histories: duplicate pending clicks often created the same 2h/3h/4h/5h set repeatedly.
+  const ordered=forwardHistory.slice().sort((a,b)=>Number(a.recordedAt)-Number(b.recordedAt)),groups=new Map(),clean=[];let removed=0;
+  for(const x of ordered){
+   if(x.outcome!=='Pending'){clean.push(x);continue;}
+   const key=[x.symbol,x.side,x.source].join('|'),at=Number(x.recordedAt),g=groups.get(key);
+   if(!g||at-g.at>=15*60*1000){groups.set(key,{at,horizons:new Set([Number(x.horizon)])});clean.push(x);continue;}
+   if(g.horizons.has(Number(x.horizon))){removed++;continue;}
+   g.horizons.add(Number(x.horizon));clean.push(x);
+  }
+  forwardHistory=clean.sort((a,b)=>Number(b.recordedAt)-Number(a.recordedAt));
+  if(removed){saveSignalHistory();$('btStatus').textContent=`History cleanup: removed ${removed} duplicate pending test record(s) from repeated clicks. Completed records were kept.`;}
+ }catch(e){forwardHistory=[];}
+}
+function saveSignalHistory(){try{localStorage.setItem(HISTORY_KEY,JSON.stringify({forward:forwardHistory}));}catch(e){$('btStatus').textContent='Could not save browser history. Check browser storage settings or export records as CSV.';}}
+function safeText(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtDate(v){return v?new Date(v).toLocaleString():'—';}
+function getMoodSnapshot(){return $('globalMoodLabel')?.textContent||'Unknown';}
+async function trackSignal(symbol,side,source,details=''){
+ try{
+  symbol=normalizeSymbol(symbol);if(!['long','short'].includes(side))side='long';source=String(source||'Indicator');details=String(details||'');
+  const now=Date.now(),duplicate=forwardHistory.some(x=>x.symbol===symbol&&x.side===side&&x.source===source&&x.outcome==='Pending'&&now-Number(x.recordedAt)<15*60*1000);
+  if(duplicate){$('btStatus').textContent=`Duplicate prevented: ${symbol} ${side.toUpperCase()} from ${source} already has pending tests recorded within the last 15 minutes. Wait for that signal or use a different source.`;document.querySelector('#signal-lab').scrollIntoView({behavior:'smooth'});return;}
+  $('btStatus').textContent=`Capturing ${symbol} ${side.toUpperCase()} entry price…`;
+  const q=await getJson(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${encodeURIComponent(symbol)}`),entry=Number(q.price);
+  if(!(entry>0))throw new Error('Could not obtain a valid entry reference price.');
+  const fee=Number($('btFee')?.value||0.001),horizons=[2,3,4,5];
+  for(const hours of horizons){forwardHistory.unshift({id:`f_${now}_${Math.random().toString(36).slice(2,8)}_${hours}`,symbol,side,source,details,mood:getMoodSnapshot(),entry,recordedAt:now,horizon:hours,dueAt:now+hours*3600000,exit:null,netReturn:null,outcome:'Pending',fee});}
+  saveSignalHistory();renderSignalHistory();$('btStatus').textContent=`Recorded ${symbol} ${side.toUpperCase()} at ${entry}. Created 2h, 3h, 4h and 5h forward tests.`;
+ }catch(e){$('btStatus').textContent=`Could not track signal: ${e.message}`;}
+}
+function trackAnalyzerSignal(){const symbol=normalizeSymbol($('symbol').value);const side=$('btDirection').value;trackSignal(symbol,side,'Candle Analyzer',`${$('timeframe').value}; lookback ${$('days').value} days`);}
+async function settleDueSignals(force=false){
+ const now=Date.now(),due=forwardHistory.filter(x=>x.outcome==='Pending'&&(force||x.dueAt<=now));if(!due.length){renderSignalHistory();return;}
+ let attempted=0,settled=0;for(let i=0;i<due.length;i+=4){const batch=due.slice(i,i+4);await Promise.all(batch.map(async x=>{try{
+   if(!force&&x.dueAt>now)return;attempted++;
+   // Use the first 1-minute candle closing at/after the scheduled due time. This avoids using today's price for an old overdue test.
+   const minuteStart=Math.floor(Number(x.dueAt)/60000)*60000;
+   const klines=await getJson(`https://fapi.binance.com/fapi/v1/klines?symbol=${encodeURIComponent(x.symbol)}&interval=1m&startTime=${minuteStart}&endTime=${minuteStart+180000}&limit=4`);
+   const candle=klines.find(k=>Number(k[6])>=Number(x.dueAt)&&Number(k[6])<=now&&Number(k[4])>0) || klines.find(k=>Number(k[0])>=minuteStart&&Number(k[6])<=now&&Number(k[4])>0);
+   if(!candle){x.lastError='Due-time 1m candle not available yet; retry later';return;}
+   const exit=Number(candle[4]);if(!(exit>0))return;
+   const gross=x.side==='long'?(exit-x.entry)/x.entry:(x.entry-exit)/x.entry,net=gross-Number(x.fee||0);x.exit=exit;x.evaluatedAt=Date.now();x.priceCandleCloseTime=Number(candle[6]);x.grossReturn=gross;x.netReturn=net;x.outcome=net>1e-8?'Win':net< -1e-8?'Loss':'Neutral';delete x.lastError;settled++;
+  }catch(e){x.lastError='Due-time candle fetch failed; retry later';}}));}
+ saveSignalHistory();renderSignalHistory();$('btStatus').textContent=`Checked ${attempted} due forward tests; settled ${settled}. Any unavailable due-time candles remain pending for retry.`;
+}
+function renderSignalHistory(){
+ const pending=forwardHistory.filter(x=>x.outcome==='Pending').length,completed=forwardHistory.filter(x=>x.outcome!=='Pending').length,scored=forwardHistory.filter(x=>x.outcome==='Win'||x.outcome==='Loss'),wins=scored.filter(x=>x.outcome==='Win').length;
+ $('historyTotal').textContent=forwardHistory.length;$('historyPending').textContent=pending;$('historyCompleted').textContent=completed;$('historyWinRate').textContent=scored.length?`${(wins/scored.length*100).toFixed(1)}%`:'—';
+ $('forwardHistoryRows').innerHTML=forwardHistory.length?forwardHistory.slice(0,500).map(x=>`<tr><td>${fmtDate(x.recordedAt)}</td><td>${safeText(x.symbol)}</td><td class="${x.side==='long'?'green':'red'}">${x.side.toUpperCase()}</td><td>${safeText(x.source)}</td><td>${Number(x.entry).toPrecision(8)}</td><td>${x.horizon}h</td><td>${x.outcome==='Pending'?`<span class="pending">Due ${fmtDate(x.dueAt)}</span>`:fmtDate(x.evaluatedAt)}</td><td>${x.exit?Number(x.exit).toPrecision(8):'—'}</td><td class="${x.netReturn==null?'neutral':x.netReturn>0?'green':x.netReturn<0?'red':'neutral'}">${x.netReturn==null?'—':pct(x.netReturn)}</td><td class="${x.outcome==='Win'?'win':x.outcome==='Loss'?'loss':x.outcome==='Pending'?'pending':'neutral'}">${safeText(x.outcome)}</td><td><button class="small-action" onclick="deleteHistoryRecord('${x.id}','forward')">Delete</button></td></tr>`).join(''):'<tr><td colspan="11" class="neutral" style="text-align:center;padding:20px">No forward signals tracked yet. Use Track beside a candidate.</td></tr>';
+}
+function deleteHistoryRecord(id){forwardHistory=forwardHistory.filter(x=>x.id!==id);saveSignalHistory();renderSignalHistory();}
+function exportSignalHistory(){const rows=[['ID','Recorded at','Coin','Side','Source','Entry','Horizon hours','Due at','Exit','Gross return %','Net return %','Outcome','Market mood','Details']];for(const x of forwardHistory)rows.push([x.id,fmtDate(x.recordedAt),x.symbol,x.side,x.source,x.entry,x.horizon,fmtDate(x.dueAt),x.exit??'',x.grossReturn==null?'':(x.grossReturn*100).toFixed(4),x.netReturn==null?'':(x.netReturn*100).toFixed(4),x.outcome,x.mood,x.details]);const csv=rows.map(r=>r.map(csvEscape).join(',')).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download='crypto_v5_forward_signal_history.csv';a.click();URL.revokeObjectURL(a.href);}
+$('refreshHistory').addEventListener('click',()=>settleDueSignals(false));$('exportHistory').addEventListener('click',exportSignalHistory);$('clearHistory').addEventListener('click',()=>{if(confirm('Delete all saved forward signal history from this browser?')){forwardHistory=[];saveSignalHistory();renderSignalHistory();$('btStatus').textContent='All local history cleared.';}});
+loadSignalHistory();renderSignalHistory();settleDueSignals(false);setInterval(()=>settleDueSignals(false),60000);window.addEventListener('focus',()=>settleDueSignals(false));
+
+async function refreshGlobalMarketMood(){
+ const btn=$('refreshGlobalMood'),wrap=$('globalMarketMood');if(btn)btn.disabled=true;
+ $('globalMoodLabel').textContent='Loading…';$('globalMoodMeta').textContent='checking top 200';
+ try{
+  const [info,tickers]=await Promise.all([getJson('https://fapi.binance.com/fapi/v1/exchangeInfo'),getJson('https://fapi.binance.com/fapi/v1/ticker/24hr')]);
+  const allowed=new Set(info.symbols.filter(s=>s.status==='TRADING'&&s.contractType==='PERPETUAL'&&s.quoteAsset==='USDT').map(s=>s.symbol));
+  const markets=tickers.filter(t=>allowed.has(t.symbol)&&t.symbol.endsWith('USDT')&&Number.isFinite(Number(t.priceChangePercent))&&Number(t.quoteVolume)>0).sort((a,b)=>Number(b.quoteVolume)-Number(a.quoteVolume)).slice(0,200);
+  if(!markets.length)throw new Error('No eligible markets');
+  const flat=markets.filter(t=>Math.abs(Number(t.priceChangePercent))<0.1).length;
+  const positive=markets.filter(t=>Number(t.priceChangePercent)>=0.1).length;
+  const negative=markets.filter(t=>Number(t.priceChangePercent)<=-0.1).length;
+  const avg=markets.reduce((sum,t)=>sum+Number(t.priceChangePercent),0)/markets.length;
+  const posShare=positive/markets.length,negShare=negative/markets.length;
+  let mood='Mixed';if(posShare>=.60&&avg>0)mood='Bullish';else if(negShare>=.60&&avg<0)mood='Bearish';
+  $('globalMoodLabel').textContent=mood;
+  $('globalMoodMeta').textContent=`${markets.length} coins · ${positive} up / ${negative} down / ${flat} flat · avg ${avg>=0?'+':''}${avg.toFixed(2)}% (24h)`;
+  wrap.classList.remove('bullish','bearish','mixed');wrap.classList.add(mood.toLowerCase());
+ }catch(e){$('globalMoodLabel').textContent='Unavailable';$('globalMoodMeta').textContent='API/network error — click Refresh';wrap.classList.remove('bullish','bearish');wrap.classList.add('mixed');}
+ finally{if(btn)btn.disabled=false;}
+}
+$('refreshGlobalMood').addEventListener('click',refreshGlobalMarketMood);
+refreshGlobalMarketMood();
 document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelectorAll('.nav a').forEach(n=>n.classList.remove('active'));a.classList.add('active')}));
 </script>
 </body>
